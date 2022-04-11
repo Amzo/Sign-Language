@@ -36,9 +36,15 @@ class VideoStreamHandler(socketserver.StreamRequestHandler):
                     # image = cv2.resize(image, (320, 180))
                     gui.piFrame = ImageTk.PhotoImage(image=Image.fromarray(imageRGB))
 
-                    if tabGui.knn.get() and tabGui.knnLoaded:
+                    # only make a prediction when we have fingerpoints detected
+                    if tabGui.selectedModel.get() == "KNN" and tabGui.modelLoaded and len(rootGui.fingerPoints) == 42:
                         points = pd.DataFrame(rootGui.fingerPoints)
                         points = points.transpose()
+
+                        # reset the datapoints as hand may have moved from out of camera
+                        # this will prevent it prediction the same character based on previously
+                        # saved ata points
+                        rootGui.fingerPoints = []
 
                         pred = tabGui.loaded_model.predict(points)
 

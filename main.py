@@ -7,8 +7,8 @@ from PIL import Image, ImageTk
 
 from lib import gui
 
-ourGUI = gui.Gui()
 
+ourGUI = gui.Gui()
 webCamera = cv2.VideoCapture(0)
 
 mpHands = mp.solutions.hands
@@ -16,8 +16,9 @@ hands = mpHands.Hands(max_num_hands=1)
 mpDraw = mp.solutions.drawing_utils
 
 ourGUI.updateWindow()
+threadRunning = True
 
-while True:
+while threadRunning:
     success, frame = webCamera.read()
     imgRGB = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = hands.process(imgRGB)
@@ -34,7 +35,13 @@ while True:
 
     assert isinstance(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), object)
     img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-    ourGUI.imgFrame = ImageTk.PhotoImage(image=img)
-    ourGUI.predFrame = ImageTk.PhotoImage(image=Image.fromarray(imgRGB))
-    ourGUI.saveFrame = Image.fromarray(imgRGB)
-    ourGUI.checkFrame = cv2.resize(imgRGB, (100, 100))
+
+    try:
+        ourGUI.imgFrame = ImageTk.PhotoImage(image=img)
+        ourGUI.predFrame = ImageTk.PhotoImage(image=Image.fromarray(imgRGB))
+        ourGUI.saveFrame = Image.fromarray(imgRGB)
+        ourGUI.checkFrame = cv2.resize(imgRGB, (100, 100))
+    except (AttributeError, RuntimeError):
+        # tkinter is on a separate thread if these attribute fails, or runtime error
+        # then the thread is dead
+        threadRunning = not threadRunning

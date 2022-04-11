@@ -24,7 +24,12 @@ class DataCaptureTab:
 
         self.saveLocation = tk.StringVar(master.rootWindow)
         self.sign = tk.StringVar(master.rootWindow)
-        self.sign.set(sign_list[0])
+        self.sign.set("A")
+
+        self.typeList = ["Train", "Test", "Validate"]
+
+        self.type = tk.StringVar(master.rootWindow)
+        self.type.set(self.typeList[0])
 
         self.videoLabel = tk.Label(tabs.tab3, borderwidth=3)
         self.signLabel = tk.Label(tabs.tab3, borderwidth=1)
@@ -38,14 +43,20 @@ class DataCaptureTab:
 
         self.dataCountLabel = tk.Label(tabs.tab3, text="Total images collected:", font='Helvetica 10 bold')
         self.countLabel = tk.Label(tabs.tab3, textvariable=self.dataCount)
-        self.outputFolderButton = tk.Button(tabs.tab3, text="browse",
+
+        self.captureTypeLabel = tk.Label(tabs.tab3, text="Capture Type", font="Helvetica 10 bold")
+
+        self.captureType = tk.OptionMenu(tabs.tab3, self.type, *self.typeList)
+
+        self.outputFolderButton = tk.Button(tabs.tab3, text="Browse",
                                             command=partial(self.browseFolder, "save", True))
 
-        self.captureDataButton = tk.Button(tabs.tab3, text="capture", command=self.captureDataThread)
+        self.captureDataButton = tk.Button(tabs.tab3, text="Capture", command=self.captureDataThread)
 
         # Add a default image to label
         img = (Image.open("images/A.png"))
         resized_image = img.resize((100, 100), Image.ANTIALIAS)
+
         self.signImg = ImageTk.PhotoImage(resized_image)
         self.signLabel.configure(image=self.signImg)
 
@@ -59,20 +70,22 @@ class DataCaptureTab:
         self.dataCountLabel.place(x=placement, y=270, anchor=tk.CENTER)
         self.countLabel.place(x=placement, y=300, anchor=tk.CENTER)
         self.outputFolderButton.place(x=placement, y=240, anchor=tk.CENTER)
-        self.captureDataButton.place(x=placement, y=460, anchor=tk.CENTER)
+        self.captureTypeLabel.place(x=placement, y=330, anchor=tk.CENTER)
+        self.captureType.place(x=placement, y=360, anchor=tk.CENTER)
+        self.captureDataButton.place(x=placement, y=420, anchor=tk.CENTER)
 
     def captureDataThread(self):
         t1 = Thread(target=self.captureData)
         t1.start()
 
     def captureData(self):
-        if not os.path.isdir(self.saveLocation.get()):
+        if not os.path.isdir(self.saveLocation.get() + "/{}/{}".format(self.type.get(), self.sign.get())):
             if self.rootClass.debug.get():
                 self.rootClass.debugWindow.logText(LogInfo.debug.value, "Directory {} doesn't exist.".format(
                     self.saveLocation.get()))
 
             try:
-                os.mkdir(self.saveLocation.get())
+                os.makedirs(self.saveLocation.get() + "/{}/{}".format(self.type.get(), self.sign.get()))
                 if self.rootClass.debug.get():
                     self.rootClass.debugWindow.logText(LogInfo.info.value, "Created directory {}.".format(
                         self.saveLocation.get()))
@@ -94,7 +107,7 @@ class DataCaptureTab:
                     self.rootClass.debugWindow.logText(LogInfo.error.value,
                                                        "No Finger points found, can't write it to csv file")
             else:
-                row.append(self.signLabelDigit)
+                row.append(self.sign.get())
 
                 if self.rootClass.debug.get():
                     self.rootClass.debugWindow.logText(LogInfo.debug.value, "writing csv file")
@@ -106,10 +119,10 @@ class DataCaptureTab:
                 resizedImage = self.rootClass.saveFrame.resize((100, 100), PIL.Image.ANTIALIAS)
 
                 if self.rootClass.debug.get():
-                    self.rootClass.debugWindow.logText(LogInfo.debug.value, "Saving image {}/image{}.png".format(
-                        self.saveLocation.get(), self.dataCount.get()))
+                    self.rootClass.debugWindow.logText(LogInfo.debug.value, "Saving image {}/{}/{}/image{}.png".format(
+                        self.saveLocation.get(), self.type.get(), self.sign.get(), self.dataCount.get()))
 
-                resizedImage.save('{}/image{}.jpg'.format(self.saveLocation.get(), self.dataCount.get()))
+                resizedImage.save('{}/{}/{}/image{}.jpg'.format(self.saveLocation.get(), self.type.get(), self.signLabelDigit.get(), self.dataCount.get()))
                 # update the data count
                 try:
                     self.dataCount.set(str(int(self.dataCount.get()) + 1))
@@ -119,9 +132,12 @@ class DataCaptureTab:
                                                            "Invalid literal for data count: defaulting to 0")
                     self.dataCount.set(str(0))
 
-    def getDataCount(self):
+    def getDataCount(self, search_dir=None):
+        if search_dir is None:
+            search_dir = self.saveLocation.get()
+
         self.dataCount.set(str(0))
-        for r, d, files in os.walk(self.saveLocation.get()):
+        for r, d, files in os.walk(search_dir):
             for file in files:
                 if file.endswith(".jpg"):
                     self.dataCount.set(str(int(self.dataCount.get()) + 1))

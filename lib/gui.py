@@ -97,7 +97,12 @@ class Gui(threading.Thread):
 
         # event to handle tab change
         self.tabsObjects.tabControl.bind('<<NotebookTabChanged>>', self.tabChanged)
+        self.rootWindow.protocol("WM_DELETE_WINDOW", self.onClosing)
+
         self.rootWindow.mainloop()
+
+    def onClosing(self):
+        self.rootWindow.quit()
 
     def enableDebug(self):
         self.debugWindow = debug.DebugWindow(master=self.rootWindow, main=self)
@@ -133,5 +138,3 @@ class Gui(threading.Thread):
 
         self.rootWindow.after(1, self.updateWindow)
 
-    def quit(self):
-        self.rootWindow.quit()

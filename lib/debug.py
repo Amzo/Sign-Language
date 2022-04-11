@@ -10,15 +10,15 @@ class LogInfo(Enum):
     debug = 4
 
 
-class DebugWindow(tk.Toplevel):
+class DebugWindow:
     def __init__(self, master=None, main=None):
-        super().__init__(master=master)
         self.master = main
-        self.title("Debug Menu")
-        self.geometry("640x480")
-        self.outputText = scrolledtext.ScrolledText(self, height=29, width=76, state=tk.DISABLED)
+        self.debugWindow = tk.Toplevel(master)
+        self.debugWindow.title("Debug Menu")
+        self.debugWindow.geometry("640x480")
+        self.outputText = scrolledtext.ScrolledText(self.debugWindow, height=29, width=76, state=tk.DISABLED)
         self.outputText.place(x=5, y=5)
-        self.protocol("WM_DELETE_WINDOW", self.onClosing)
+        self.debugWindow.protocol("WM_DELETE_WINDOW", self.onClosing)
         self.master.debug.set(True)
 
         self.outputText.tag_configure("info", foreground="blue")
@@ -28,7 +28,7 @@ class DebugWindow(tk.Toplevel):
 
     def onClosing(self):
         self.master.debug.set(False)
-        self.destroy()
+        self.debugWindow.destroy()
 
     def logText(self, log_type, msg):
         self.outputText.config(state=tk.NORMAL)
@@ -44,3 +44,5 @@ class DebugWindow(tk.Toplevel):
         elif log_type == 4:
             self.outputText.insert(tk.END, "DEBUG: ", "debug")
             self.outputText.insert(tk.END, msg + "\n")
+
+        self.outputText.yview(tk.END)
