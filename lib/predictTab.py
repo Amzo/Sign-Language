@@ -9,11 +9,12 @@ from tkinter import messagebox, filedialog
 from lib import piWindow
 from lib import server as ourServer
 from lib.debug import LogInfo
-from lib import models as ourModels
+from lib import models as OurModels
 
 
 class PredictTab:
     def __init__(self, master=None, tabs=None):
+        self.ourModel = OurModels.customModel(root_window=master)
         self.model = None
         self.modelLoaded = False
         self.loaded_model = None
@@ -177,7 +178,8 @@ class PredictTab:
         else:
             if self.selectedModel.get() == "KNN":
                 if self.rootClass.debug.get():
-                    self.rootClass.debugWindow.logText(LogInfo.debug.value, "Loading KNN Model from {}".format(self.modelLocation.get()))
+                    self.rootClass.debugWindow.logText(LogInfo.debug.value,
+                                                       "Loading KNN Model from {}".format(self.modelLocation.get()))
 
                 self.loaded_model = pickle.load(
                     open(self.modelLocation.get(), 'rb'))
@@ -187,5 +189,5 @@ class PredictTab:
 
                 self.modelLoaded = True
             elif self.selectedModel.get() == "CNN":
-                self.loaded_model = ourModels.loadModel()
+                self.loaded_model = self.ourModel.loadModel()
                 self.modelLoaded = True

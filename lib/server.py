@@ -7,6 +7,7 @@ import pandas as pd
 from PIL import Image, ImageTk
 import numpy as np
 from lib import models as ourModel
+from lib.debug import LogInfo
 
 
 class VideoStreamHandler(socketserver.StreamRequestHandler):
@@ -17,6 +18,12 @@ class VideoStreamHandler(socketserver.StreamRequestHandler):
             print("Connection Failed")
 
         finally:
+            # use pred to save the prediction on every frame and only send the max predicted character over when the
+            # list reaches a size of 24. Since we're running 24 frames per second, this is 1 prediction per second
+            # and minimizes the odd incorrect prediction in that time. Trying to throw in multiple signs within a second
+            # is also hard to accomplish
+            pred = []
+
             while self.connectFlag:
                 try:
 
@@ -36,47 +43,59 @@ class VideoStreamHandler(socketserver.StreamRequestHandler):
                     # image = cv2.resize(image, (320, 180))
                     gui.piFrame = ImageTk.PhotoImage(image=Image.fromarray(imageRGB))
 
-                    # only make a prediction when we have fingerpoints detected
-                    if tabGui.selectedModel.get() == "KNN" and tabGui.modelLoaded and len(rootGui.fingerPoints) == 42:
+                    if (tabGui.selectedModel.get() == "KNN" or tabGui.selectedModel.get() == "CNN") \
+                            and tabGui.modelLoaded and rootGui.fingerPoints is not None:
+
+                        if rootGui.debug.get():
+                            rootGui.debugWindow.logText(LogInfo.debug.value, "Gathering Datapoints for prediction")
+
                         points = pd.DataFrame(rootGui.fingerPoints)
                         points = points.transpose()
 
                         # reset the datapoints as hand may have moved from out of camera
                         # this will prevent it prediction the same character based on previously
                         # saved ata points
-                        rootGui.fingerPoints = []
+                        rootGui.fingerPoints = None
 
-                        pred = tabGui.loaded_model.predict(points)
+                        tabGui.ourModel.makePrediction(check_frame=rootGui.checkFrame, points=points)
 
-                        try:
-                            pred[0]
-                            results = [k for k, v in tabGui.keyMap.items() if v == pred[0]]
-                            print("Got Prediction {} which is mapped to {}".format(pred[0], results[0]))
-                        except IndexError:
-                            pred[0] == "Stop"
+                        pred.append(tabGui.ourModel.results[0])
 
-                        if pred[0] in tabGui.keyMap.values():
-                            # Translate the keys to car commands, as these keys are already mapped on the car
-                            if results[0] == "turnRight":
-                                command = "a"
-                            elif results[0] == "turnLeft":
-                                command = "d"
-                            elif results[0] == "forward":
-                                command = "w"
-                            elif results[0] == "reverse":
-                                command = "s"
-                            elif results[0] == "up":
-                                command = "i"
-                            elif results[0] == "down":
-                                command = "k"
-                            elif results[0] == "left":
-                                command = "j"
-                            elif results[0] == "right":
-                                command = "l"
-                            else:
-                                command = "t"
-                            print("Sending command {}".format(command))
-                            commands.send(('{0}\n'.format(command)).encode('utf-8'))
+                        if rootGui.debug.get():
+                            rootGui.debugWindow.logText(LogInfo.debug.value, "Got prediction {}".format(pred))
+
+                        if len(pred) >= 12:
+                            highest = max(pred, key=pred.count)
+                            try:
+                                results = [k for k, v in tabGui.keyMap.items() if v == highest]
+                                print("Got Prediction {} which is mapped to {}".format(highest, results[0]))
+                            except IndexError:
+                                highest == "Stop"
+
+                            if highest in tabGui.keyMap.values():
+                                # Translate the keys to car commands, as these keys are already mapped on the car
+                                if results[0] == "turnRight":
+                                    command = "a"
+                                elif results[0] == "turnLeft":
+                                    command = "d"
+                                elif results[0] == "forward":
+                                    command = "w"
+                                elif results[0] == "reverse":
+                                    command = "s"
+                                elif results[0] == "up":
+                                    command = "i"
+                                elif results[0] == "down":
+                                    command = "k"
+                                elif results[0] == "left":
+                                    command = "j"
+                                elif results[0] == "right":
+                                    command = "l"
+                                else:
+                                    command = "t"
+                                print("Sending command {}".format(command))
+                                commands.send(('{0}\n'.format(command)).encode('utf-8'))
+
+                            pred = []
 
                 except Exception as e:
                     print(e)

@@ -170,7 +170,7 @@ class TrainTab:
             self.logText(LogInfo.error.value, "Couldn't find directory to save model to")
         else:
             # See if the csv file exists, if it does, we can use it for concatenating with the
-            # cnn. The CNN alone is currently has a F1score of 86% on sign images
+            # cnn. The CNN alone is currently has a F1score of 94% on sign images
             if list(pathlib.Path(self.saveLocation.get()).rglob("*.csv")):
                 if self.rootWindow.debug.get():
                     self.rootWindow.debugWindow.logText(LogInfo.info.value, "Found a CSV File")

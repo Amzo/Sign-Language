@@ -5,7 +5,9 @@ import cv2
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from keras.callbacks import ReduceLROnPlateau
 from keras_preprocessing.image import ImageDataGenerator
+
 from sklearn.metrics import accuracy_score, precision_score, recall_score
 from sklearn.metrics import classification_report
 from sklearn.metrics import confusion_matrix
@@ -14,13 +16,18 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import LabelBinarizer
 from sklearn.utils import shuffle
 from tensorflow.python.keras.layers import concatenate
-import tensorboard
 
 from lib.debug import LogInfo
 
 
+def get_model_name(k):
+    return 'model_' + str(k) + '.h5'
+
+
 class customModel(tf.keras.callbacks.Callback):
     def __init__(self, root_window=None):
+        self.encoder = None
+        self.results = None
         self.prevF1Score = 0
         self.Fold_Test_Input2 = None
         self.Fold_Test_OutPut = None
@@ -66,11 +73,6 @@ class customModel(tf.keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs=None):
         epoch += 1
         updateValue = 100.00 / int(self.rootWindow.trainTab.epochInput.get())
-        try:
-           f1score = round(
-               2 * ((logs['val_precision'] * logs['val_recall']) / (logs['val_precision'] + logs['val_recall'])), 4)
-        except ZeroDivisionError:
-           f1score = 0
 
         self.rootWindow.trainTab.logText(LogInfo.info.value,
                                          "End epoch {}; loss: {} - accuracy: {} - val_loss: {} - val_accuracy: {}"
@@ -83,9 +85,6 @@ class customModel(tf.keras.callbacks.Callback):
                                                 "Updating progress bar by (epoch {} * {})".format(epoch, updateValue))
 
         self.rootWindow.trainTab.progressValue.set(epoch * updateValue)
-
-    def get_model_name(self, k):
-        return 'model_' + str(k) + '.h5'
 
     def fitKnn(self):
         self.rootWindow.trainTab.logText(LogInfo.info.value,
@@ -143,13 +142,18 @@ class customModel(tf.keras.callbacks.Callback):
         knnPickle = open(savePath[0] + "/knn.pkl", 'wb')
         pickle.dump(neigh, knnPickle)
 
-    def makePrediction(self, check_frame, finger_points):
-
+    def makePrediction(self, points=None, check_frame=None):
         if self.rootWindow.predictTab.selectedModel.get() == "KNN":
-            results = self.rootWindow.predictTab.loaded_model.predict(
-                [np.expand_dims(check_frame, axis=0), np.asarray(finger_points).reshape(1, -1)])
+            self.results = self.rootWindow.predictTab.loaded_model.predict(points)
+        elif self.rootWindow.predictTab.selectedModel.get() == "CNN":
+            if self.rootWindow.debug.get():
+                self.rootWindow.debugWindow.logText(LogInfo.debug.value, "Getting CNN Prediction")
 
-            print(str(results))
+            cv2.imshow("test", check_frame)
+            cv2.waitKey(1)
+            predFrame = np.expand_dims(check_frame, axis=0)
+            prediction = self.model.predict([predFrame, points])
+            self.results = self.encoder.inverse_transform(prediction)
 
     def appendImage(self, dirs=None, index=None, img_file=None):
         img = cv2.imread(img_file, cv2.IMREAD_COLOR)
@@ -190,6 +194,7 @@ class customModel(tf.keras.callbacks.Callback):
         while True:
             X1i = genX1.next()
             X2i = genX2.next()
+
             # Assert arrays are equal - this was for peace of mind, but slows down training
             np.testing.assert_array_equal(X1i[0], X2i[0])
             yield [X1i[0], X2i[1]], X1i[1]
@@ -207,7 +212,7 @@ class customModel(tf.keras.callbacks.Callback):
         if self.rootWindow.debug.get():
             self.rootWindow.debugWindow.logText(LogInfo.debug.value, "Augmenting the data and training")
 
-        # This code was to work around a csv file with non-existence entries which build up over time with data collection
+        # This code was to work around a csv file with non-existence entries which built up over time with data collection
         # Check to see if the image name exists with in the specified dir matching the key
         # csv file has since been cleaned up but code has remained.
         for i in range(self.signLanguageSet.shape[0]):
@@ -231,8 +236,6 @@ class customModel(tf.keras.callbacks.Callback):
 
                 self.appendImage(dirs="Validate", index=i, img_file=img)
 
-                # self.progressValue.set(i * updateValue)
-                # k = i
             elif os.path.exists(
                     self.rootWindow.trainTab.saveLocation.get() + "/Test/" + self.signLanguageSet['Key'][i] + "/" +
                     self.signLanguageSet['Image'][
@@ -266,12 +269,12 @@ class customModel(tf.keras.callbacks.Callback):
         self.x2Test = np.array(testFeatureList)
 
         encoder = LabelBinarizer()
-        encoder.fit_transform(trainLabels)
+        encoder.fit(trainLabels)
         self.yTrain = encoder.transform(trainLabels)
         self.yValidate = encoder.transform(validateLabels)
         self.yTest = encoder.transform(testLabels)
 
-        output = open(self.rootWindow.trainTab.modelSaveLocation.get() + '/Departure_encoder.pkl', 'wb')
+        output = open(self.rootWindow.trainTab.modelSaveLocation.get() + '/classes.pkl', 'wb')
         pickle.dump(encoder, output)
         output.close()
 
@@ -305,14 +308,12 @@ class customModel(tf.keras.callbacks.Callback):
             inputID.append(self.x1Train[x])
             outputID.append(self.yTrain[x])
 
-        Inputs = [self.x1Train, self.x2Train]
-
         tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=self.rootWindow.trainTab.modelSaveLocation.get())
 
         for trainID, testID in kfold.split(inputID, outputID):
             # Call checkpoint each iteration to update the model save name
             model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
-                self.rootWindow.trainTab.modelSaveLocation.get() + '/' + self.get_model_name(self.fold_var),
+                self.rootWindow.trainTab.modelSaveLocation.get() + '/' + get_model_name(self.fold_var),
                 monitor='val_accuracy', verbose=1,
                 save_best_only=True, mode='max')
 
@@ -322,14 +323,16 @@ class customModel(tf.keras.callbacks.Callback):
             self.Fold_Test_Input1, self.Fold_Test_Input2 = self.x1Train[testID], self.x2Train[testID]
             self.Fold_Test_OutPut = self.yTrain[testID]
 
+            reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=5, min_lr=1e-5)
+
             if self.fold_var == 1:
                 # Since the weights are loaded after every kfold has been trained, only set the optimizer once
                 self.createModel()
-                opt = tf.keras.optimizers.Adam(learning_rate=0.005, epsilon=1e-8, beta_1=0.9, beta_2=0.999)
+                opt = tf.keras.optimizers.Adam(epsilon=1e-8, beta_1=0.9, beta_2=0.999)
 
                 if self.rootWindow.debug.get():
                     self.rootWindow.debugWindow.logText(LogInfo.debug.value,
-                                                    "Compiling the model loss: categorical crossentropy, optimizer: Adam")
+                                                        "Compiling the model loss: categorical crossentropy, optimizer: Adam")
 
                 self.model.compile(loss='categorical_crossentropy', optimizer=opt,
                                    metrics=['categorical_crossentropy', 'accuracy', tf.keras.metrics.Precision(),
@@ -341,12 +344,14 @@ class customModel(tf.keras.callbacks.Callback):
                 self.model.load_weights(
                     self.rootWindow.trainTab.modelSaveLocation.get() + "/model_" + str(self.fold_var - 1) + ".h5")
 
-            self.rootWindow.trainTab.logText(LogInfo.info.value, "Startin training on fold number {}".format(self.fold_var))
+            self.rootWindow.trainTab.logText(LogInfo.info.value,
+                                             "Starting training on fold number {}".format(self.fold_var))
             self.model.fit(gen_flow, verbose=1,
                            epochs=self.rootWindow.trainTab.epochs,
-                           validation_data=([self.Fold_Test_Input1, self.Fold_Test_Input2], self.Fold_Test_OutPut),
+                           validation_data=(
+                               [self.Fold_Test_Input1, self.Fold_Test_Input2], self.Fold_Test_OutPut),
                            steps_per_epoch=len(self.Fold_Train_Input1) / 16,
-                           callbacks=[self, model_checkpoint_callback, tensorboard_callback], )
+                           callbacks=[self, model_checkpoint_callback, tensorboard_callback, reduce_lr], )
 
             if self.rootWindow.debug.get():
                 self.rootWindow.debugWindow.logText(LogInfo.debug.value, "Loading best saved model")
@@ -355,7 +360,7 @@ class customModel(tf.keras.callbacks.Callback):
                 self.rootWindow.trainTab.modelSaveLocation.get() + "/model_" + str(self.fold_var) + ".h5")
 
             if self.rootWindow.debug.get():
-                self.rootWindow.debugWindow.logText(LogInfo.debug.value, "Evaluating the best model on train data")
+                self.rootWindow.debugWindow.logText(LogInfo.debug.value, "Evaluating the best model on test data")
 
             score = self.model.evaluate([self.x1Test, self.x2Test], self.yTest)
 
@@ -377,13 +382,14 @@ class customModel(tf.keras.callbacks.Callback):
             self.prevF1Score = f1Score
 
     def loadModel(self):
+        self.encoder = pickle.load(open(self.rootWindow.predictTab.modelLocation.get() + "/../classes.pkl", 'rb'))
         self.model = tf.keras.models.load_model(self.rootWindow.predictTab.modelLocation.get())
 
     def createModel(self):
         if self.rootWindow.debug.get():
             self.rootWindow.debugWindow.logText(LogInfo.debug.value, "Creating a model for fingerPoints")
 
-        fingerPoints = tf.keras.Input(shape=(42,))
+        fingerPoints = tf.keras.Input(shape=(42,), name='FingerPointInput')
         x = tf.keras.layers.Dense(42, activation="relu")(fingerPoints)
         x = tf.keras.layers.Dropout(0.2)(x)
         x = tf.keras.layers.Dense(256, activation="relu")(x)
@@ -393,20 +399,23 @@ class customModel(tf.keras.callbacks.Callback):
 
         img = (100, 100, 3)
 
-        inputs = tf.keras.Input(shape=img)
+        inputs = tf.keras.Input(shape=img, name='ImageInput')
 
         if self.rootWindow.debug.get():
             self.rootWindow.debugWindow.logText(LogInfo.debug.value, "Loading xception model")
 
-        xception = tf.keras.applications.xception.Xception(include_top=False,  # weights='imagenet',
-                                                           input_shape=img)
+        xceptionModel = tf.keras.applications.xception.Xception(input_tensor=inputs, include_top=False,
+                                                                weights='imagenet')
 
-        y = xception(inputs, training=True)
+        for layer in xceptionModel.layers[:-2]:
+            layer.trainable = False
+
+        y = tf.keras.layers.Dense(512, activation="relu")(xceptionModel.output, training=True)
         y = tf.keras.layers.Flatten()(y)
         y = tf.keras.layers.Dense(256, activation="relu")(y)
         y = tf.keras.layers.Dropout(0.2)(y)
         y = tf.keras.layers.Dense(128, activation="relu")(y)
-        y = tf.keras.Model(inputs, y)
+        y = tf.keras.Model(xceptionModel.input, y)
 
         if self.rootWindow.debug.get():
             self.rootWindow.debugWindow.logText(LogInfo.debug.value,

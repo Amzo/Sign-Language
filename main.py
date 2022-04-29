@@ -3,10 +3,10 @@ from typing import Any
 
 import cv2
 import mediapipe as mp
+import numpy as np
 from PIL import Image, ImageTk
 
 from lib import gui
-
 
 ourGUI = gui.Gui()
 webCamera = cv2.VideoCapture(0)
@@ -40,7 +40,9 @@ while threadRunning:
         ourGUI.imgFrame = ImageTk.PhotoImage(image=img)
         ourGUI.predFrame = ImageTk.PhotoImage(image=Image.fromarray(imgRGB))
         ourGUI.saveFrame = Image.fromarray(imgRGB)
-        ourGUI.checkFrame = cv2.resize(imgRGB, (100, 100))
+        imgRez = cv2.resize(imgRGB, (100, 100))
+        imgRez = imgRez / 255
+        ourGUI.checkFrame = np.array(imgRez)
     except (AttributeError, RuntimeError):
         # tkinter is on a separate thread if these attribute fails, or runtime error
         # then the thread is dead
