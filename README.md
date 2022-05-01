@@ -71,6 +71,12 @@ git clone https://github.com/Amzo/Sign-Language-Data.git
 ```
 
 [NOTE] When training a model in the train tab, browse to the downloaded dataset. The setup of cuda if required is down to the user.
+
+ execute the program with the following:
+ 
+ ```
+ python .\main.py
+ ```
  
  
 ## Project Tabs
