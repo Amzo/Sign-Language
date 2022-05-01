@@ -22,8 +22,7 @@ while threadRunning:
     success, frame = webCamera.read()
     imgRGB = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = hands.process(imgRGB)
-
-    tmpList: list[list[int | Any]] = []
+    tmpList = []
 
     if results.multi_hand_landmarks:
         for handMarks in results.multi_hand_landmarks:
