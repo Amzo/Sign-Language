@@ -16,12 +16,6 @@ Table of contents
 
 ## Setup
 
-Create a directory for the virtualenv
-
-```
-mkdir RoboticsWork
-```
-
 Setup the virtual enviroment and install packages
 
 ```
@@ -29,6 +23,13 @@ python -m venv --system-site-packages .\RoboticsEnv\
 ```
 
 Activate the enviroment
+
+[Note] Depending on system security settings, activation of the enviroment may not be possible. You can allow execution of the scripts
+with:
+```
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
 
 ```
 .\RoboticsEnv\Scripts\activate
