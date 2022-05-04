@@ -87,10 +87,10 @@ This tab will allow connecting to a remote server and sending the predicted comm
 
 ### Train
 
-This tab allows fitting the convolutional neural network. Browse to the necessary data and select a model output folder. The training is done in 3 splits for a specified number of epochs. The model consists of an Xception model as a base for transfer learning, as well as a model for the fingerpoints from the csv file. The output layers of these two models are concatenated.
+This tab allows fitting the convolutional neural network. Browse to the necessary data and select a model output folder. The training is done in 3 splits for a specified number of epochs. The model consists of an Xception model as a base for transfer learning, as well as a model for the fingerpoints from the csv file. The output layers of these two models are concatenated. Training will be painfully slow without GPU accelleration and is advice to avoid training the CNN if no GPU is available. The use of the KNN should be used in this case.
 
 This tab also allows fitting the KNN with the CSV data file to generate a fitted model which is saved as a pickle file.
 
 ### Capture
 
-The capture tab focuses on collecting data such as the images sabed as (100x100) pixels, as well as writing the finger datapoints to a csv files. The necessary directories for the data to be saved to are created automatically by the software.
+The capture tab focuses on collecting data such as the images saved as (100x100) pixels, as well as writing the finger datapoints to a csv files. The necessary directories for the data to be saved to are created automatically by the software.
